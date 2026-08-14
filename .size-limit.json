@@ -1,36 +1,72 @@
 [
   {
-    "name": "zx/core",
-    "path": ["build/core.cjs", "build/util.cjs", "build/vendor-core.cjs"],
-    "limit": "70 kB",
+    "name": "zx-lite",
+    "path": [
+      "build/3rd-party-licenses",
+      "build/core.cjs",
+      "build/core.d.ts",
+      "build/core.js",
+      "build/deno.js",
+      "build/error.d.ts",
+      "build/esblib.cjs",
+      "build/internals.cjs",
+      "build/internals.d.ts",
+      "build/log.d.ts",
+      "build/util.cjs",
+      "build/util.d.ts",
+      "build/vendor-core.cjs",
+      "build/vendor-core.d.ts",
+      "README.md",
+      "LICENSE"
+    ],
+    "limit": "129.46 kB",
     "brotli": false,
     "gzip": false
   },
   {
-    "name": "zx/index",
-    "path": "build/*.{js,cjs}",
-    "limit": "781 kB",
+    "name": "js parts",
+    "path": [
+      "build/*.cjs",
+      "build/cli.js",
+      "build/core.js",
+      "build/index.js",
+      "build/globals.js",
+      "build/deno.js"
+    ],
+    "limit": "881.85 kB",
     "brotli": false,
     "gzip": false
   },
   {
-    "name": "dts libdefs",
+    "name": "libdefs",
     "path": "build/*.d.ts",
-    "limit": "31 kB",
+    "limit": "45.68 kB",
     "brotli": false,
     "gzip": false
   },
   {
     "name": "vendor",
-    "path": "build/vendor-*",
-    "limit": "745 kB",
+    "path": "build/vendor-*.{cjs,d.ts}",
+    "limit": "835.65 kB",
     "brotli": false,
     "gzip": false
   },
   {
     "name": "all",
-    "path": "build/*",
-    "limit": "815 kB",
+    "path": [
+      "build/3rd-party-licenses",
+      "build/*.cjs",
+      "build/*.d.ts",
+      "build/cli.js",
+      "build/core.js",
+      "build/index.js",
+      "build/globals.js",
+      "build/deno.js",
+      "man/*",
+      "README.md",
+      "LICENSE"
+    ],
+    "limit": "944.60 kB",
     "brotli": false,
     "gzip": false
   }

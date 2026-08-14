@@ -12,11 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export { exec, buildCmd, type TSpawnStore } from 'zurk/spawn'
+import { default as _chalk } from 'chalk'
+import { default as _which } from 'which'
+import { default as _ps } from '@webpod/ps'
+import { bus } from './internals.ts'
+
+export {
+  type TSpawnStore,
+  exec,
+  buildCmd,
+  isStringLiteral,
+  VoidStream,
+} from 'zurk/spawn'
 
 export type RequestInfo = Parameters<typeof globalThis.fetch>[0]
-export type RequestInit = Parameters<typeof globalThis.fetch>[1]
+export type RequestInit = Parameters<typeof globalThis.fetch>[1] & {
+  signal?: AbortSignal
+}
 
-export { default as chalk, type ChalkInstance } from 'chalk'
-export { default as which } from 'which'
-export { default as ps } from '@webpod/ps'
+export { type ChalkInstance } from 'chalk'
+export const chalk: typeof _chalk = bus.wrap('chalk', _chalk)
+export const which: typeof _which = bus.wrap('which', _which)
+export const ps: typeof _ps = bus.wrap('ps', _ps)

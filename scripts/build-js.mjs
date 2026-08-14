@@ -34,7 +34,7 @@ const argv = minimist(process.argv.slice(2), {
     entry: './src/index.ts',
     external: 'node:*',
     bundle: 'src', // 'all' | 'none'
-    license: 'eof',
+    license: 'none', // see digestLicenses below // 'eof',
     minify: false,
     sourcemap: false,
     format: 'cjs,esm',
@@ -57,20 +57,22 @@ const {
 } = argv
 
 const formats = format.split(',')
-const cwd = Array.isArray(_cwd) ? _cwd[_cwd.length - 1] : _cwd
+const cwd = [_cwd].flat().pop()
 const entries = entry.split(/:\s?/)
-const entryPoints = entry.includes('*')
-  ? await glob(entries, { absolute: false, onlyFiles: true, cwd, root: cwd })
-  : entries.map((p) => path.relative(cwd, path.resolve(cwd, p)))
-
-const _bundle = bundle !== 'none' && !process.argv.includes('--no-bundle')
-const _external = _bundle ? external.split(',') : undefined // https://github.com/evanw/esbuild/issues/1466
+const entryPoints =
+  entry.includes('*') || entry.includes('{')
+    ? await glob(entries, { absolute: false, onlyFiles: true, cwd, root: cwd })
+    : entries.map((p) => path.relative(cwd, path.resolve(cwd, p)))
+const _bundle = bundle && bundle !== 'none'
+const _external = ['zx/globals', ...(_bundle ? external.split(',') : [])] // https://github.com/evanw/esbuild/issues/1466
 
 const plugins = [
   esbuildResolvePlugin({
     yaml: path.resolve(__dirname, '../node_modules/yaml/browser'),
   }),
 ]
+
+const thirdPartyModules = new Set()
 
 if (_bundle && entryPoints.length > 1) {
   plugins.push(entryChunksPlugin())
@@ -85,7 +87,7 @@ if (bundle === 'src') {
 if (hybrid) {
   plugins.push(
     hybridExportPlugin({
-      loader: 'require',
+      loader: 'reexport',
       to: 'build',
       toExt: '.js',
     })
@@ -93,14 +95,38 @@ if (hybrid) {
 }
 
 plugins.push(
+  {
+    name: 'get-3rd-party-modules',
+    setup: (build) => {
+      build.onResolve({ filter: /./, namespace: 'file' }, async (args) => {
+        thirdPartyModules.add(args.resolveDir)
+      })
+    },
+  },
   transformHookPlugin({
     hooks: [
       {
         on: 'end',
         if: !hybrid,
         pattern: /\.js$/,
+        transform(contents, file) {
+          const { name } = path.parse(file)
+          const _contents = contents
+            .toString()
+            .replace(
+              '} = __module__',
+              `} = globalThis.Deno ? globalThis.require("./${name}.cjs") : __module__`
+            )
+          return injectCode(_contents, `import "./deno.js"`)
+        },
+      },
+      {
+        on: 'end',
+        if: !hybrid,
+        pattern: /cli\.js$/,
         transform(contents) {
-          return injectCode(contents, `import { require } from './deno.js'`)
+          return `${contents}autorun(import.meta)
+`
         },
       },
       {
@@ -139,6 +165,11 @@ plugins.push(
               /\/\/ Annotate the CommonJS export names for ESM import in node:/,
               ($0) => `/* c8 ignore next 100 */\n${$0}`
             )
+            .replace(
+              'yield import("zx/globals")',
+              'yield require("./globals.cjs")'
+            )
+            .replace('require("./internals.ts")', 'require("./internals.cjs")')
         },
       },
     ],
@@ -150,17 +181,66 @@ plugins.push(
   {
     name: 'deno',
     setup(build) {
-      build.onEnd(() =>
+      build.onEnd(() => {
         fs.copyFileSync('./scripts/deno.polyfill.js', './build/deno.js')
-      )
+        fs.writeFileSync(
+          './build/3rd-party-licenses',
+          digestLicenses(thirdPartyModules)
+        )
+      })
     },
   }
 )
 
+// prettier-ignore
+function digestLicenses(dirs) {
+  const digest = [...[...dirs]
+    .reduce((m, d) => {
+      const chunks = d.split('/')
+      const i = chunks.lastIndexOf('node_modules')
+      const name = chunks[i + 1]
+      const shift = i + 1 + (name.startsWith('@') ? 2 : 1)
+      const root = chunks.slice(0, shift).join('/')
+      m.add(root)
+      return m
+    }, new Set())]
+    .map(d => {
+      const extractName = (entry) => entry?.name ? `${entry.name} <${entry.email}>` : entry
+      const pkg = path.join(d, 'package.json')
+      const pkgJson = JSON.parse(fs.readFileSync(pkg, 'utf-8'))
+      const author = extractName(pkgJson.author)
+      const contributors = (pkgJson.contributors || pkgJson.maintainers || []).map(extractName).join(', ')
+      const by = author || contributors || '<unknown>'
+      const repository = pkgJson.repository?.url || pkgJson.repository || ''
+      const license = pkgJson.license || '<unknown>'
+
+      if (pkgJson.name === 'zx') return
+
+      return `${pkgJson.name}@${pkgJson.version}
+  ${by}
+  ${repository}
+  ${license}`
+    })
+    .filter(Boolean)
+    .sort()
+    .join('\n\n')
+
+  return `THIRD PARTY LICENSES
+
+${digest}
+`
+}
+
 function entryPointsToRegexp(entryPoints) {
   return new RegExp(
-    '(' + entryPoints.map((e) => path.parse(e).name).join('|') + ')\\.cjs$'
+    '(' +
+      entryPoints.map((e) => escapeRegExp(path.parse(e).name)).join('|') +
+      ')\\.cjs$'
   )
+}
+
+function escapeRegExp(str) {
+  return str.replace(/[/\-\\^$*+?.()|[\]{}]/g, '\\$&')
 }
 
 const esmConfig = {

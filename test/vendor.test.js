@@ -14,14 +14,90 @@
 
 import assert from 'node:assert'
 import { test, describe } from 'node:test'
-import { YAML } from '../build/vendor.js'
+import {
+  YAML,
+  MAML,
+  minimist,
+  which,
+  glob,
+  nodeFetch as fetch,
+} from '../build/vendor.cjs'
 
-describe('YAML', () => {
-  test('YAML.parse', () => {
-    assert.deepEqual(YAML.parse('a: b\n'), { a: 'b' })
+describe('vendor API', () => {
+  describe('YAML', () => {
+    test('parse()', () => {
+      assert.deepEqual(YAML.parse('a: b\n'), { a: 'b' })
+    })
+    test('stringify()', () => {
+      assert.equal(YAML.stringify({ a: 'b' }), 'a: b\n')
+    })
   })
 
-  test('YAML.stringify', () => {
-    assert.equal(YAML.stringify({ a: 'b' }), 'a: b\n')
+  describe('MAML', () => {
+    test('parse()/stringify()', () => {
+      const maml = `{
+  project: "MAML"
+  tags: [
+    "minimal"
+    "readable"
+  ]
+  spec: {
+    version: 1
+    author: "Anton Medvedev"
+  }
+  notes: """
+This is a multiline string.
+Keeps formatting as‑is.
+"""
+}`
+      const obj = MAML.parse(maml)
+
+      assert.deepEqual(MAML.parse(MAML.stringify(obj)), obj)
+      assert.deepEqual(obj, {
+        project: 'MAML',
+        tags: ['minimal', 'readable'],
+        spec: {
+          version: 1,
+          author: 'Anton Medvedev',
+        },
+        notes: 'This is a multiline string.\nKeeps formatting as‑is.\n',
+      })
+    })
+  })
+
+  test('globby() works', async () => {
+    assert.deepEqual(await glob('*.md'), ['README.md'])
+    assert.deepEqual(glob.sync('*.md'), ['README.md'])
+  })
+
+  test('fetch() works', async () => {
+    assert.match(
+      await fetch('https://github.com').then((res) => res.text()),
+      /GitHub/
+    )
+  })
+
+  test('which() available', async () => {
+    assert.equal(which.sync('npm'), await which('npm'))
+    assert.throws(() => which.sync('not-found-cmd'), /not-found-cmd/)
+  })
+
+  test('minimist available', async () => {
+    assert.equal(typeof minimist, 'function')
+  })
+
+  test('minimist works', async () => {
+    assert.deepEqual(
+      minimist(
+        ['--foo', 'bar', '-a', '5', '-a', '42', '--force', './some.file'],
+        { boolean: 'force' }
+      ),
+      {
+        a: [5, 42],
+        foo: 'bar',
+        force: true,
+        _: ['./some.file'],
+      }
+    )
   })
 })

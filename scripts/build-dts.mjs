@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import fs from 'fs/promises'
+import fs from 'node:fs/promises'
 import { generateDtsBundle } from 'dts-bundle-generator'
 import glob from 'fast-glob'
 
@@ -39,12 +39,14 @@ const entries = [
         'node-fetch-native',
         // 'chalk',
         'globby',
-        // '@types/minimist',
+        '@types/minimist',
         // '@types/which',
         // 'zurk',
         // '@webpod/ps',
         '@webpod/ingrid',
         'depseek',
+        'envapi',
+        'maml',
       ], // args['external-inlines'],
     },
     output,
@@ -67,7 +69,7 @@ const entries = [
 ]
 
 const compilationOptions = {
-  preferredConfigPath: './tsconfig.prod.json', // args.project,
+  preferredConfigPath: './tsconfig.json', // args.project,
   followSymlinks: true,
 }
 
@@ -98,12 +100,21 @@ for (const i in results) {
   await fs.writeFile(entry.outFile, result, 'utf8')
 }
 
-// Replaces redundant triple-slash directives
+// Properly formats triple-slash directives
+const pkgEntries = ['core', 'index', 'vendor']
+const prefix = `/// <reference types="node" />
+/// <reference types="fs-extra" />
+
+`
+
 for (const dts of await glob(['build/**/*.d.ts', '!build/vendor-*.d.ts'])) {
-  const contents = (await fs.readFile(dts, 'utf8'))
-    .split('\n')
-    .filter((line) => !line.startsWith('/// <reference types'))
-    .join('\n')
+  const contents =
+    (pkgEntries.some((e) => dts.includes(e)) ? prefix : '') +
+    (await fs.readFile(dts, 'utf8'))
+      .replaceAll(".ts';", ".js';")
+      .split('\n')
+      .filter((line) => !line.startsWith('/// <reference types'))
+      .join('\n')
 
   await fs.writeFile(dts, contents, 'utf8')
 }

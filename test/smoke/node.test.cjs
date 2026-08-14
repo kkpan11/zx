@@ -26,6 +26,18 @@ require('zx/globals')
     const p = await $({ nothrow: true })`echo foo; exit 3`
     assert.match(p.message, /exit code: 3/)
   }
-})()
 
-console.log('smoke cjs: ok')
+  // which() resolves a known binary
+  {
+    const async = await which('node')
+    const sync = which.sync('node')
+    assert.equal(async, sync)
+    assert.ok(async && async.length > 0)
+    assert.equal(
+      which.sync('definitely-not-a-real-bin', { nothrow: true }),
+      null
+    )
+  }
+
+  console.log('smoke cjs: ok')
+})()
